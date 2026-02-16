@@ -17,17 +17,17 @@ function resolveCredentialsPath(rawPath: string): string {
 
 function getClient(): TTSClient {
   if (!client) {
-    const rawPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    const keyFilename = rawPath ? resolveCredentialsPath(rawPath) : undefined;
     const clientEmail = process.env.GCP_CLIENT_EMAIL;
     const privateKey = process.env.GCP_PRIVATE_KEY?.replace(/\\n/g, "\n");
+    const rawPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    const keyFilename = rawPath ? resolveCredentialsPath(rawPath) : undefined;
 
-    if (keyFilename) {
-      client = new textToSpeech.TextToSpeechClient({ keyFilename });
-    } else if (clientEmail && privateKey) {
+    if (clientEmail && privateKey) {
       client = new textToSpeech.TextToSpeechClient({
         credentials: { client_email: clientEmail, private_key: privateKey },
       });
+    } else if (keyFilename) {
+      client = new textToSpeech.TextToSpeechClient({ keyFilename });
     } else {
       throw new Error(
         "Set GOOGLE_APPLICATION_CREDENTIALS or GCP_CLIENT_EMAIL + GCP_PRIVATE_KEY"

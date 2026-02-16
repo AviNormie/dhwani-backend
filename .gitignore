@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+principal-lane-481010-b2-4fd331ddf55d.json
 
 # debug
 npm-debug.log*
