@@ -7,6 +7,7 @@ import {
 
 export interface SynthesizeResult {
   audioUrl: string;
+  path: string;
 }
 
 const MAX_TTS_BYTES = 5000;
@@ -72,6 +73,6 @@ export async function synthesizeToSpeech(
   }
 
   const combined = Buffer.concat(buffers);
-  const { audioUrl } = await uploadAudio(combined);
-  return { audioUrl };
+  const { audioUrl, path } = await uploadAudio(combined);
+  return { audioUrl, path };
 }

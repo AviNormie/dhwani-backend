@@ -23,14 +23,21 @@ function getClient(): TTSClient {
     const keyFilename = rawPath ? resolveCredentialsPath(rawPath) : undefined;
 
     if (clientEmail && privateKey) {
+      // When using inline credentials, clear GOOGLE_APPLICATION_CREDENTIALS from
+      // the environment so the Google library doesn't try to load it as a file.
+      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
       client = new textToSpeech.TextToSpeechClient({
         credentials: { client_email: clientEmail, private_key: privateKey },
+        fallback: true,
       });
-    } else if (keyFilename) {
-      client = new textToSpeech.TextToSpeechClient({ keyFilename });
+    } else if (keyFilename && fs.existsSync(keyFilename)) {
+      client = new textToSpeech.TextToSpeechClient({
+        keyFilename,
+        fallback: true,
+      });
     } else {
       throw new Error(
-        "Set GOOGLE_APPLICATION_CREDENTIALS or GCP_CLIENT_EMAIL + GCP_PRIVATE_KEY"
+        "Set GCP_CLIENT_EMAIL + GCP_PRIVATE_KEY, or set GOOGLE_APPLICATION_CREDENTIALS to a valid JSON file path"
       );
     }
   }

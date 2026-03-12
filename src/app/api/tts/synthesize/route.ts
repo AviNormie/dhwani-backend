@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await synthesizeToSpeech({ text, chunks });
-    return Response.json({ audioUrl: result.audioUrl });
+    return Response.json({ audioUrl: result.audioUrl, path: result.path });
   } catch (err) {
     const message = err instanceof Error ? err.message : "TTS failed";
     if (message.includes("Provide") || message.includes("No audio")) {
