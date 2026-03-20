@@ -8,8 +8,9 @@ Copy `.env.example` to `.env.local` and set:
 | -------- | ----------- |
 | `SUPABASE_URL` | Supabase project URL (e.g. `https://xxxx.supabase.co`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (for Storage uploads) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to Google Cloud service account JSON, **or** |
-| `GCP_CLIENT_EMAIL` + `GCP_PRIVATE_KEY` | Service account email and private key from that JSON |
+| `GCP_CLIENT_EMAIL` | Google service account email |
+| `GCP_PRIVATE_KEY` | Google service account private key (single line with `\n`) |
+| `GCP_PROJECT_ID` | Google Cloud project ID |
 
 **Supabase:** Create a Storage bucket named `tts-audio` and allow public read (or use signed URLs if you prefer).
 

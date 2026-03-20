@@ -1,43 +1,21 @@
-import path from "node:path";
-import fs from "node:fs";
 import textToSpeech from "@google-cloud/text-to-speech";
 
 type TTSClient = InstanceType<typeof textToSpeech.TextToSpeechClient>;
 let client: TTSClient | null = null;
 
-function resolveCredentialsPath(rawPath: string): string {
-  const resolved = path.isAbsolute(rawPath)
-    ? rawPath
-    : path.resolve(process.cwd(), rawPath);
-  if (fs.existsSync(resolved)) return resolved;
-  const inCwd = path.resolve(process.cwd(), path.basename(rawPath));
-  if (fs.existsSync(inCwd)) return inCwd;
-  return resolved;
-}
-
 function getClient(): TTSClient {
   if (!client) {
     const clientEmail = process.env.GCP_CLIENT_EMAIL;
     const privateKey = process.env.GCP_PRIVATE_KEY?.replace(/\\n/g, "\n");
-    const rawPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    const keyFilename = rawPath ? resolveCredentialsPath(rawPath) : undefined;
 
     if (clientEmail && privateKey) {
-      // When using inline credentials, clear GOOGLE_APPLICATION_CREDENTIALS from
-      // the environment so the Google library doesn't try to load it as a file.
-      delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
       client = new textToSpeech.TextToSpeechClient({
         credentials: { client_email: clientEmail, private_key: privateKey },
         fallback: true,
       });
-    } else if (keyFilename && fs.existsSync(keyFilename)) {
-      client = new textToSpeech.TextToSpeechClient({
-        keyFilename,
-        fallback: true,
-      });
     } else {
       throw new Error(
-        "Set GCP_CLIENT_EMAIL + GCP_PRIVATE_KEY, or set GOOGLE_APPLICATION_CREDENTIALS to a valid JSON file path"
+        "Missing GCP_CLIENT_EMAIL or GCP_PRIVATE_KEY environment variables"
       );
     }
   }
