@@ -1,5 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
 import { getSupabase } from "./client";
 
 const BUCKET = "tts-audio";
@@ -14,34 +12,24 @@ export async function uploadAudio(
   filename?: string
 ): Promise<UploadAudioResult> {
   const objectName = filename ?? `${crypto.randomUUID()}.mp3`;
+  const supabase = getSupabase();
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .upload(objectName, buffer, {
+      contentType: "audio/mpeg",
+      upsert: true,
+    });
 
-  if (supabaseUrl && supabaseKey) {
-    try {
-      const { data, error } = await getSupabase().storage
-        .from(BUCKET)
-        .upload(objectName, buffer, {
-          contentType: "audio/mpeg",
-          upsert: true,
-        });
-
-      if (!error && data) {
-        const {
-          data: { publicUrl },
-        } = getSupabase().storage.from(BUCKET).getPublicUrl(data.path);
-
-        return { audioUrl: publicUrl, path: data.path };
-      }
-    } catch {}
+  if (error || !data) {
+    throw new Error(
+      `SUPABASE_STORAGE_UPLOAD_FAILED: ${error?.message ?? "No upload data returned"}`
+    );
   }
 
-  const publicDir = path.join(process.cwd(), "public", BUCKET);
-  await fs.promises.mkdir(publicDir, { recursive: true });
-  const filePath = path.join(publicDir, objectName);
-  await fs.promises.writeFile(filePath, buffer);
-  const publicUrlPath = `/${BUCKET}/${objectName}`;
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
 
-  return { audioUrl: publicUrlPath, path: filePath };
+  return { audioUrl: publicUrl, path: data.path };
 }

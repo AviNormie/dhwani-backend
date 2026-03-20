@@ -38,8 +38,15 @@ export async function GET(_req: NextRequest) {
         }) ?? [];
 
       return Response.json({ items });
-    } catch {
-      // Supabase may be unreachable; fall back to local files written in uploadAudio().
+    } catch (supabaseError) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          `SUPABASE_STORAGE_LIST_FAILED: ${
+            supabaseError instanceof Error ? supabaseError.message : "Unknown storage error"
+          }`
+        );
+      }
+      // Local dev fallback only (Vercel file system is read-only).
     }
 
     const dir = path.join(process.cwd(), "public", BUCKET);
