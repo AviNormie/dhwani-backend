@@ -1,23 +1,15 @@
 import textToSpeech from "@google-cloud/text-to-speech";
+import { getGcpClientOptions } from "@/lib/gcp/credentials";
 
 type TTSClient = InstanceType<typeof textToSpeech.TextToSpeechClient>;
 let client: TTSClient | null = null;
 
 function getClient(): TTSClient {
   if (!client) {
-    const clientEmail = process.env.GCP_CLIENT_EMAIL;
-    const privateKey = process.env.GCP_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-    if (clientEmail && privateKey) {
-      client = new textToSpeech.TextToSpeechClient({
-        credentials: { client_email: clientEmail, private_key: privateKey },
-        fallback: true,
-      });
-    } else {
-      throw new Error(
-        "Missing GCP_CLIENT_EMAIL or GCP_PRIVATE_KEY environment variables"
-      );
-    }
+    client = new textToSpeech.TextToSpeechClient({
+      ...getGcpClientOptions(),
+      fallback: true,
+    });
   }
   return client;
 }
