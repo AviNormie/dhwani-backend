@@ -4,6 +4,7 @@ export type ErrorCode =
   | "INVALID_INPUT"
   | "FILE_TOO_LARGE"
   | "PDF_EXTRACT_FAILED"
+  | "OCR_FAILED"
   | "TTS_FAILED"
   | "STORAGE_FAILED"
   | "INTERNAL";
