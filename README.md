@@ -1,4 +1,4 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). It provides PDF text extraction (embedded text or **Google Cloud Vision OCR** for scanned PDFs), Google Cloud TTS, with audio stored in Supabase Storage.
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app). It provides PDF text extraction (embedded text or **Google Cloud Vision OCR** for scanned PDFs), Google Cloud TTS, with audio stored in Google Cloud Storage.
 
 ## Environment variables
 
@@ -6,14 +6,16 @@ Create `.env.local` (or set variables in your host) with:
 
 | Variable | Description |
 | -------- | ----------- |
-| `SUPABASE_URL` | Supabase project URL (e.g. `https://xxxx.supabase.co`) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (for Storage uploads) |
+| `GCS_BUCKET_NAME` | GCS bucket name used for generated TTS audio uploads (public URLs by default). |
+| `GCS_AUDIO_PREFIX` | Optional object prefix for uploaded audio files. Defaults to `tts-audio`. |
 | `GCP_CLIENT_EMAIL` | Google service account email |
 | `GCP_PRIVATE_KEY` | Google service account private key (single line with `\n`) |
 | `GCP_PROJECT_ID` | Google Cloud project ID (recommended for Vision/Storage LRO) |
 | `GCS_OCR_BUCKET` | GCS bucket name (not a `gs://` URL) used for Vision async PDF OCR. Required when a PDF has **no embedded text** (scanned documents). Objects are written under `ocr-input/` and `ocr-output/` and deleted after each run. |
 
-**Supabase:** Create a Storage bucket named `tts-audio` and allow public read (or use signed URLs if you prefer).
+Auth can be done with either:
+- `GCP_CLIENT_EMAIL` + `GCP_PRIVATE_KEY` (+ `GCP_PROJECT_ID`), which this repo already uses, or
+- `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service-account JSON key file.
 
 ### Google Cloud setup for OCR
 
@@ -32,7 +34,8 @@ Vision OCR is a **long-running** step (often seconds; large PDFs can take minute
 ## API
 
 - `POST /api/pdf/upload` — FormData with `file` (PDF). Returns `{ text, chunks, chunkSize, usedOcr }`. Text comes from embedded PDF parsing when possible; otherwise **Vision `DOCUMENT_TEXT_DETECTION`** via GCS. Response code `OCR_FAILED` indicates missing OCR config or Vision/GCS failure.
-- `POST /api/tts/synthesize` — JSON `{ text }` or `{ chunks: string[] }`. Returns `{ audioUrl }` (Supabase public URL).
+- `POST /api/tts/synthesize` — JSON `{ text }` or `{ chunks: string[] }`. Returns `{ audioUrl, path }` (GCS URL + object path).
+- `GET /api/tts/synthesize?stream=true&text=...` — Optional direct stream response (`audio/mpeg`) without storing.
 - `GET /api/health` — Returns `{ ok: true }`.
 
 ## Getting Started
