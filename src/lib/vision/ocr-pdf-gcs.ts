@@ -38,6 +38,7 @@ async function deletePrefix(bucketName: string, prefix: string): Promise<void> {
 export async function extractTextFromPdfViaVisionGcs(
   pdfBuffer: Buffer
 ): Promise<string> {
+  console.info("[vision/ocr] OCR pipeline started");
   const bucketName = process.env.GCS_OCR_BUCKET?.trim();
   if (!bucketName) {
     throw new PdfOcrError(
@@ -56,13 +57,19 @@ export async function extractTextFromPdfViaVisionGcs(
   const inputFile = bucket.file(inputPath);
 
   try {
+    console.info("[vision/ocr] Uploading PDF to GCS", { inputPath });
     await inputFile.save(pdfBuffer, {
       contentType: "application/pdf",
       resumable: false,
       metadata: { cacheControl: "no-cache" },
     });
+    console.info("[vision/ocr] PDF upload completed");
 
     const client = getVisionClient();
+    console.info("[vision/ocr] Submitting async Vision OCR job", {
+      source: gcsSourceUri,
+      destination: gcsDestinationUri,
+    });
     const [operation] = await client.asyncBatchAnnotateFiles({
       requests: [
         {
@@ -79,10 +86,16 @@ export async function extractTextFromPdfViaVisionGcs(
       ],
     });
 
+    console.info("[vision/ocr] Waiting for OCR job completion");
     await operation.promise();
+    console.info("[vision/ocr] OCR job completed, listing output JSON files");
 
     const [outputFiles] = await bucket.getFiles({ prefix: outputPrefix });
     const jsonFiles = outputFiles.filter((f) => f.name.endsWith(".json"));
+    console.info("[vision/ocr] OCR output files found", {
+      totalFiles: outputFiles.length,
+      jsonFiles: jsonFiles.length,
+    });
 
     if (jsonFiles.length === 0) {
       throw new PdfOcrError(
@@ -98,6 +111,7 @@ export async function extractTextFromPdfViaVisionGcs(
       })
     );
 
+    console.info("[vision/ocr] Merging OCR JSON outputs");
     const merged = mergeVisionAsyncOutputJsonBodies(bodies);
     if (!merged.trim()) {
       throw new PdfOcrError(
@@ -105,13 +119,18 @@ export async function extractTextFromPdfViaVisionGcs(
         "execution"
       );
     }
+    console.info("[vision/ocr] OCR text merge completed", {
+      textLength: merged.length,
+    });
     return merged;
   } catch (e) {
     if (e instanceof PdfOcrError) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     throw new PdfOcrError(`Vision OCR failed: ${msg}`, "execution");
   } finally {
+    console.info("[vision/ocr] Cleaning up GCS temp files");
     await inputFile.delete({ ignoreNotFound: true }).catch(() => undefined);
     await deletePrefix(bucketName, outputPrefix).catch(() => undefined);
+    console.info("[vision/ocr] Cleanup completed");
   }
 }
