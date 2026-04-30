@@ -42,21 +42,33 @@ function normalizeChunks(chunks: string[]): string[] {
 export async function synthesizeToSpeech(
   input: { text?: string; chunks?: string[] }
 ): Promise<SynthesizeResult> {
+  console.info("[tts/pipeline] Preparing synthesis input");
   let chunks: string[] = [];
   if (input.chunks?.length) {
+    console.info("[tts/pipeline] Normalizing provided chunks", {
+      inputChunkCount: input.chunks.length,
+    });
     chunks = normalizeChunks(input.chunks);
   } else if (input.text?.trim()) {
+    console.info("[tts/pipeline] Chunking raw text input", {
+      textLength: input.text.length,
+    });
     chunks = chunkText(input.text.trim(), {
       maxChunkBytes: DEFAULT_MAX_CHUNK_BYTES,
     });
   }
 
   if (chunks.length === 0) {
+    console.warn("[tts/pipeline] No chunks available after preprocessing");
     throw new Error("Provide either text or chunks");
   }
 
+  console.info("[tts/pipeline] Synthesizing chunks", {
+    chunkCount: chunks.length,
+  });
   const buffers: Buffer[] = [];
-  for (const chunk of chunks) {
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
     const trimmed = chunk.trim();
     if (!trimmed) continue;
     if (byteLength(trimmed) > MAX_TTS_BYTES) {
@@ -64,15 +76,28 @@ export async function synthesizeToSpeech(
         `Chunk exceeds ${MAX_TTS_BYTES} bytes (got ${byteLength(trimmed)}). This should not happen after normalizeChunks.`
       );
     }
+    console.info("[tts/pipeline] Synthesizing chunk", {
+      chunkIndex: i + 1,
+      totalChunks: chunks.length,
+      chunkBytes: byteLength(trimmed),
+    });
     const buf = await synthesizeChunk(trimmed);
     buffers.push(buf);
   }
 
   if (buffers.length === 0) {
+    console.warn("[tts/pipeline] No audio buffers generated");
     throw new Error("No audio was generated");
   }
 
+  console.info("[tts/pipeline] Combining chunk audio buffers", {
+    bufferCount: buffers.length,
+  });
   const combined = Buffer.concat(buffers);
+  console.info("[tts/pipeline] Uploading combined audio", {
+    bytes: combined.length,
+  });
   const { audioUrl, path } = await uploadAudio(combined);
+  console.info("[tts/pipeline] Upload completed", { path });
   return { audioUrl, path };
 }

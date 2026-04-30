@@ -33,6 +33,11 @@ export async function synthesizeChunk(
   options: SynthesizeOptions = {}
 ): Promise<Buffer> {
   const bytes = Buffer.byteLength(text, "utf8");
+  console.info("[tts/google] Synthesizing chunk via Google TTS", {
+    bytes,
+    voice: options.voice ?? DEFAULT_VOICE,
+    languageCode: options.languageCode ?? DEFAULT_LANGUAGE,
+  });
   if (bytes > GOOGLE_TTS_MAX_BYTES) {
     throw new Error(
       `Input is longer than the limit of ${GOOGLE_TTS_MAX_BYTES} bytes (got ${bytes}). Chunk text before calling or use the synthesize API with text/chunks so the server can chunk for you.`
@@ -55,5 +60,8 @@ export async function synthesizeChunk(
   if (!content || !(content instanceof Uint8Array)) {
     throw new Error("Google TTS returned no audio");
   }
+  console.info("[tts/google] Google TTS chunk synthesis successful", {
+    outputBytes: content.byteLength,
+  });
   return Buffer.from(content);
 }
