@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     const audioBuffer = Buffer.concat(buffers);
-    return new Response(audioBuffer, {
+    return new Response(new Uint8Array(audioBuffer), {
       headers: {
         "Content-Type": "audio/mpeg",
         "Content-Length": String(audioBuffer.length),

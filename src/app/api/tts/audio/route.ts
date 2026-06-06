@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { buffer, contentType } = await downloadAudioFromGcs(path);
-    return new Response(buffer, {
+    return new Response(new Uint8Array(buffer), {
       headers: {
         "Content-Type": contentType,
         "Content-Length": String(buffer.length),
