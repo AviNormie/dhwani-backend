@@ -24,6 +24,8 @@ export interface SynthesizeOptions {
 
 const GOOGLE_TTS_MAX_BYTES = 5000;
 const GOOGLE_TTS_MAX_RETRIES = 3;
+/** Max allowed by Google TTS (+16 dB) for louder output. */
+const GOOGLE_TTS_VOLUME_GAIN_DB = 16.0;
 
 function isRetryableTtsError(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
@@ -73,6 +75,7 @@ export async function synthesizeChunk(
         audioConfig: {
           audioEncoding: "MP3",
           sampleRateHertz: 24000,
+          volumeGainDb: GOOGLE_TTS_VOLUME_GAIN_DB,
         },
       });
 
