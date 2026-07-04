@@ -49,12 +49,17 @@ export function chunkText(
 
     // Prefer break at sentence end, then double newline, then single newline, then space
     const lastPeriod = slice.lastIndexOf(". ");
+    const lastDanda = Math.max(
+      slice.lastIndexOf("। "),
+      slice.lastIndexOf("।")
+    );
     const lastDoubleNewline = slice.lastIndexOf("\n\n");
     const lastNewline = slice.lastIndexOf("\n");
     const lastSpace = slice.lastIndexOf(" ");
 
     const breakAt = Math.max(
       lastPeriod >= 0 ? lastPeriod + 1 : -1,
+      lastDanda >= 0 ? lastDanda + 1 : -1,
       lastDoubleNewline >= 0 ? lastDoubleNewline + 2 : -1,
       lastNewline >= 0 ? lastNewline + 1 : -1,
       lastSpace >= 0 ? lastSpace + 1 : -1

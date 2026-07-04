@@ -1,9 +1,12 @@
-import { synthesizeChunk } from "./google-tts";
+import { synthesizeChunk, type SynthesizeOptions } from "./google-tts";
 import { randomUUID } from "node:crypto";
 import { uploadAudioToGcs } from "@/lib/gcs/storage";
 import {
   chunkText,
 } from "@/lib/pdf/chunk-text";
+import { detectTtsLanguage, resolveTtsOptions } from "./detect-language";
+
+export { detectTtsLanguage } from "./detect-language";
 
 export interface SynthesizeResult {
   audioUrl: string;
@@ -18,12 +21,29 @@ function byteLength(str: string): number {
   return Buffer.byteLength(str, "utf8");
 }
 
+/** Preserve Unicode (Hindi/Devanagari); only strip control chars and normalize whitespace. */
 export function cleanText(text: string): string {
   return text
-    .replace(/\s+/g, " ")
-    .replace(/[\n\r]+/g, " ")
-    .replace(/[^\x00-\x7F]/g, "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function findSentenceBreak(text: string, maxChars: number): number {
+  const minBreak = Math.floor(maxChars * 0.5);
+  const candidates = [
+    text.lastIndexOf(". ", maxChars),
+    text.lastIndexOf("। ", maxChars),
+    text.lastIndexOf("।", maxChars),
+    text.lastIndexOf("? ", maxChars),
+    text.lastIndexOf("! ", maxChars),
+    text.lastIndexOf("\n\n", maxChars),
+    text.lastIndexOf("\n", maxChars),
+    text.lastIndexOf(" ", maxChars),
+  ];
+  const best = Math.max(...candidates);
+  return best >= minBreak ? best : -1;
 }
 
 function splitByMaxChars(text: string, maxChars: number): string[] {
@@ -32,14 +52,20 @@ function splitByMaxChars(text: string, maxChars: number): string[] {
   let remaining = text;
 
   while (remaining.length > maxChars) {
-    let splitAt = remaining.lastIndexOf(". ", maxChars);
-    if (splitAt < maxChars * 0.5) {
-      splitAt = remaining.lastIndexOf(" ", maxChars);
-    }
+    let splitAt = findSentenceBreak(remaining, maxChars);
     if (splitAt < 1) {
       splitAt = maxChars;
-    } else if (remaining[splitAt] === ".") {
-      splitAt += 1;
+    } else {
+      const ch = remaining[splitAt];
+      if (ch === "." || ch === "?" || ch === "!") {
+        splitAt += 1;
+      } else if (ch === "।") {
+        splitAt += 1;
+      } else if (remaining.slice(splitAt, splitAt + 2) === "\n\n") {
+        splitAt += 2;
+      } else if (ch === "\n") {
+        splitAt += 1;
+      }
     }
 
     out.push(remaining.slice(0, splitAt).trim());
@@ -93,7 +119,14 @@ function normalizeTextInput(text: string): string[] {
  * Input text is sanitized and chunked conservatively for better TTS stability.
  */
 export async function synthesizeToSpeech(
-  input: { text?: string; chunks?: string[] }
+  input: {
+    text?: string;
+    chunks?: string[];
+    /** Full document text for language detection when synthesizing a single chunk. */
+    detectFromText?: string;
+    languageCode?: string;
+    voice?: string;
+  }
 ): Promise<SynthesizeResult> {
   console.info("[tts/pipeline] Preparing synthesis input");
   let chunks: string[] = [];
@@ -118,8 +151,18 @@ export async function synthesizeToSpeech(
     throw new Error("Provide either text or chunks");
   }
 
+  const languageSample =
+    input.detectFromText?.trim() ||
+    input.text?.trim() ||
+    chunks.join(" ");
+  const ttsOptions = resolveTtsOptions(languageSample, {
+    languageCode: input.languageCode,
+    voice: input.voice,
+  });
   console.info("[tts/pipeline] Synthesizing chunks", {
     chunkCount: chunks.length,
+    languageCode: ttsOptions.languageCode,
+    voice: ttsOptions.voice,
   });
   const buffers: Buffer[] = [];
   for (let i = 0; i < chunks.length; i++) {
@@ -137,7 +180,7 @@ export async function synthesizeToSpeech(
       chunkBytes: byteLength(cleaned),
       chunkChars: cleaned.length,
     });
-    const buf = await synthesizeChunk(cleaned);
+    const buf = await synthesizeChunk(cleaned, ttsOptions);
     buffers.push(buf);
   }
 
