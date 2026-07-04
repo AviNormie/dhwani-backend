@@ -42,6 +42,26 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function voiceAttempts(options: SynthesizeOptions): Array<{
+  name: string;
+  languageCode: string;
+}> {
+  const languageCode = options.languageCode ?? DEFAULT_LANGUAGE;
+  const primary = options.voice ?? DEFAULT_VOICE;
+  const attempts: Array<{ name: string; languageCode: string }> = [
+    { name: primary, languageCode },
+  ];
+
+  if (!primary.includes("Standard")) {
+    const standard = `${languageCode}-Standard-A`;
+    if (standard !== primary) {
+      attempts.push({ name: standard, languageCode });
+    }
+  }
+
+  return attempts;
+}
+
 /**
  * Synthesize a single text chunk to MP3 audio buffer.
  * Chunk must be ≤ 5000 UTF-8 bytes (Google limit). Use chunkText() for longer input.
@@ -62,47 +82,52 @@ export async function synthesizeChunk(
     );
   }
   const tts = getClient();
+  const attempts = voiceAttempts(options);
   let lastError: unknown;
 
-  for (let attempt = 1; attempt <= GOOGLE_TTS_MAX_RETRIES; attempt++) {
-    try {
-      const [response] = await tts.synthesizeSpeech({
-        input: { text },
-        voice: {
-          name: options.voice ?? DEFAULT_VOICE,
-          languageCode: options.languageCode ?? DEFAULT_LANGUAGE,
-        },
-        audioConfig: {
-          audioEncoding: "MP3",
-          sampleRateHertz: 24000,
-          volumeGainDb: GOOGLE_TTS_VOLUME_GAIN_DB,
-        },
-      });
+  for (const voice of attempts) {
+    for (let attempt = 1; attempt <= GOOGLE_TTS_MAX_RETRIES; attempt++) {
+      try {
+        const [response] = await tts.synthesizeSpeech({
+          input: { text },
+          voice: {
+            name: voice.name,
+            languageCode: voice.languageCode,
+          },
+          audioConfig: {
+            audioEncoding: "MP3",
+            sampleRateHertz: 24000,
+            volumeGainDb: GOOGLE_TTS_VOLUME_GAIN_DB,
+          },
+        });
 
-      const content = response.audioContent;
-      if (!content || !(content instanceof Uint8Array)) {
-        throw new Error("Google TTS returned no audio");
+        const content = response.audioContent;
+        if (!content || !(content instanceof Uint8Array)) {
+          throw new Error("Google TTS returned no audio");
+        }
+
+        console.info("[tts/google] Google TTS chunk synthesis successful", {
+          outputBytes: content.byteLength,
+          attempt,
+          voice: voice.name,
+        });
+        return Buffer.from(content);
+      } catch (error) {
+        lastError = error;
+        const retryable = isRetryableTtsError(error);
+        console.warn("[tts/google] Chunk synthesis failed", {
+          attempt,
+          voice: voice.name,
+          retryable,
+          message: error instanceof Error ? error.message : String(error),
+        });
+
+        if (!retryable || attempt === GOOGLE_TTS_MAX_RETRIES) {
+          break;
+        }
+
+        await sleep(300 * attempt);
       }
-
-      console.info("[tts/google] Google TTS chunk synthesis successful", {
-        outputBytes: content.byteLength,
-        attempt,
-      });
-      return Buffer.from(content);
-    } catch (error) {
-      lastError = error;
-      const retryable = isRetryableTtsError(error);
-      console.warn("[tts/google] Chunk synthesis failed", {
-        attempt,
-        retryable,
-        message: error instanceof Error ? error.message : String(error),
-      });
-
-      if (!retryable || attempt === GOOGLE_TTS_MAX_RETRIES) {
-        break;
-      }
-
-      await sleep(300 * attempt);
     }
   }
 

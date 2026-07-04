@@ -15,11 +15,18 @@ export async function POST(request: NextRequest) {
     const chunks = Array.isArray(body?.chunks)
       ? body.chunks.filter((c: unknown) => typeof c === "string")
       : undefined;
+    const detectFromText =
+      typeof body?.detectFromText === "string" ? body.detectFromText : undefined;
+    const languageCode =
+      typeof body?.languageCode === "string" ? body.languageCode : undefined;
+    const voice = typeof body?.voice === "string" ? body.voice : undefined;
 
     console.info("[tts/synthesize] Input parsed", {
       hasText: Boolean(text?.trim()),
       textLength: text?.length ?? 0,
       chunkCount: chunks?.length ?? 0,
+      hasDetectFromText: Boolean(detectFromText?.trim()),
+      languageCode: languageCode ?? "auto",
     });
 
     if (!text && (!chunks || chunks.length === 0)) {
@@ -28,7 +35,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.info("[tts/synthesize] Starting synthesis pipeline");
-    const result = await synthesizeToSpeech({ text, chunks });
+    const result = await synthesizeToSpeech({
+      text,
+      chunks,
+      detectFromText,
+      languageCode,
+      voice,
+    });
     console.info("[tts/synthesize] Synthesis pipeline completed", {
       path: result.path,
       hasAudioUrl: Boolean(result.audioUrl),
