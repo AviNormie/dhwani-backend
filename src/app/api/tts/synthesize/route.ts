@@ -47,7 +47,11 @@ export async function POST(request: NextRequest) {
       hasAudioUrl: Boolean(result.audioUrl),
     });
     const proxyAudioUrl = `/api/tts/audio?path=${encodeURIComponent(result.path)}`;
-    return Response.json({ audioUrl: proxyAudioUrl, path: result.path });
+    return Response.json({
+      audioUrl: proxyAudioUrl,
+      path: result.path,
+      spokenText: result.spokenText,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "TTS failed";
     console.error("[tts/synthesize] Request failed", message);
@@ -56,6 +60,9 @@ export async function POST(request: NextRequest) {
     }
     if (message.includes("GCS") || message.includes("storage")) {
       return internalError(message, "STORAGE_FAILED");
+    }
+    if (message.includes("Translation") || message.includes("translate")) {
+      return internalError(message, "TTS_FAILED");
     }
     return internalError(message, "TTS_FAILED");
   }

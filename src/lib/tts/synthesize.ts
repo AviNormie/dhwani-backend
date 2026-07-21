@@ -1,16 +1,19 @@
-import { synthesizeChunk, type SynthesizeOptions } from "./google-tts";
+import { synthesizeChunk } from "./google-tts";
 import { randomUUID } from "node:crypto";
 import { uploadAudioToGcs } from "@/lib/gcs/storage";
 import {
   chunkText,
 } from "@/lib/pdf/chunk-text";
 import { detectTtsLanguage, resolveTtsOptions } from "./detect-language";
+import { translateChunksToLanguage } from "./translate";
 
 export { detectTtsLanguage } from "./detect-language";
 
 export interface SynthesizeResult {
   audioUrl: string;
   path: string;
+  /** Text that was spoken (translated when an output language was requested). */
+  spokenText: string;
 }
 
 const MAX_TTS_BYTES = 5000;
@@ -159,6 +162,22 @@ export async function synthesizeToSpeech(
     languageCode: input.languageCode,
     voice: input.voice,
   });
+
+  // When the user picks an output language, translate chunks into that language
+  // so speech matches the selection even if the PDF was in another language.
+  if (input.languageCode?.trim()) {
+    console.info("[tts/pipeline] Translating chunks to output language", {
+      languageCode: input.languageCode,
+      chunkCount: chunks.length,
+    });
+    chunks = normalizeChunks(
+      await translateChunksToLanguage(chunks, input.languageCode)
+    );
+    if (chunks.length === 0) {
+      throw new Error("Translation produced no speakable text");
+    }
+  }
+
   console.info("[tts/pipeline] Synthesizing chunks", {
     chunkCount: chunks.length,
     languageCode: ttsOptions.languageCode,
@@ -202,5 +221,5 @@ export async function synthesizeToSpeech(
     contentType: "audio/mpeg",
   });
   console.info("[tts/pipeline] Upload completed", { path });
-  return { audioUrl, path };
+  return { audioUrl, path, spokenText: chunks.join("\n\n") };
 }
